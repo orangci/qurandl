@@ -254,28 +254,33 @@ async def main(args):
     parser.add_argument("-r", "--reciter", default="yasser_ad-dussary", help="Reciter name")
     args = parser.parse_args(args)
 
-    async with aiohttp.ClientSession() as session:
-        if args.surah.lower() == "all":
-            surah_items = list(SURAH_NAME_MAP.items())
-        elif "-" in args.surah:
-            start, end = map(int, args.surah.split("-"))
-            surah_items = [(name, num) for name, num in SURAH_NAME_MAP.items() if start <= num <= end]
-        elif args.surah.isdigit():
-            num = int(args.surah)
-            name = next((n for n, i in SURAH_NAME_MAP.items() if i == num), None)
-            if not name:
-                print(f"Surah number '{num}' not found.")
-                return
-            surah_items = [(name, num)]
-        else:
-            name = guess_name(args.surah.lower(), SURAH_NAME_MAP.keys())
-            if not name:
-                print(f"Surah name '{args.surah}' not found.")
-                return
-            surah_items = [(name, SURAH_NAME_MAP[name])]
+    try:
+        async with aiohttp.ClientSession() as session:
+            if args.surah.lower() == "all":
+                surah_items = list(SURAH_NAME_MAP.items())
+            elif "-" in args.surah:
+                start, end = map(int, args.surah.split("-"))
+                surah_items = [(name, num) for name, num in SURAH_NAME_MAP.items() if start <= num <= end]
+            elif args.surah.isdigit():
+                num = int(args.surah)
+                name = next((n for n, i in SURAH_NAME_MAP.items() if i == num), None)
+                if not name:
+                    print(f"Surah number '{num}' not found.")
+                    return
+                surah_items = [(name, num)]
+            else:
+                name = guess_name(args.surah.lower(), SURAH_NAME_MAP.keys())
+                if not name:
+                    print(f"Surah name '{args.surah}' not found.")
+                    return
+                surah_items = [(name, SURAH_NAME_MAP[name])]
 
-        os.makedirs(args.output, exist_ok=True)
-        await asyncio.gather(*[download_surah(session, num, name, args.reciter, args.output, args.file_name) for name, num in surah_items])
+            os.makedirs(args.output, exist_ok=True)
+            await asyncio.gather(*[download_surah(session, num, name, args.reciter, args.output, args.file_name) for name, num in surah_items])
+
+    except KeyboardInterrupt:
+        print("\nDownload interrupted by the user. Exiting...")
+        return
 
 
 if __name__ == "__main__":

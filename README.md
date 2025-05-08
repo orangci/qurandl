@@ -2,7 +2,7 @@
 Simple Python CLI script for mass downloading Qur'an audio files from [QuranicAudio](https://www.quranicaudio.com).
 
 **Features**:
-- Download the entirety of the Qur'an in under two minutes.
+- Download the entirety of the Qur'an in under two minutes (depending on your internet connection).
 - Choose any filename format you prefer.
 - Choose whichever reciter you prefer.
 
