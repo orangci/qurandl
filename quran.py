@@ -227,21 +227,30 @@ def guess_name(name, names):
     return match[0] if match else None
 
 
-async def download_surah(session, surah_num, surah_name, reciter_id, output_dir, file_format):
+async def download_surah(session, surah_num, surah_name, reciter_id, output_dir, file_format, retries=3):
     filename = file_format.replace("number", str(surah_num)).replace("name", surah_name.title()) + ".mp3"
     url = f"https://download.quranicaudio.com/quran/{reciter_id}/{surah_num:03}.mp3"
     filepath = os.path.join(output_dir, filename)
 
-    async with session.get(url) as response:
-        if response.status != 200:
-            print(f"Failed to download Surah {surah_num}: {response.status}")
+    for attempt in range(retries):
+        try:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    print(f"Failed to download Surah {surah_num}: {response.status}")
+                    return
+                async with aiofiles.open(filepath, "wb") as f:
+                    async for chunk in response.content.iter_chunked(1048576 * 50):
+                        await f.write(chunk)
+            print(f"Downloaded: {filepath}")
             return
-
-        async with aiofiles.open(filepath, "wb") as f:
-            async for chunk in response.content.iter_chunked(1048576 * 50):  # 50 MiB
-                await f.write(chunk)
-
-    print(f"Downloaded: {filepath}")
+        except asyncio.CancelledError:
+            return
+        except aiohttp.ClientConnectionError:
+            print(f"Network error while downloading Surah {surah_num} (attempt {attempt + 1}/{retries})")
+        except Exception as e:
+            print(f"Unexpected error while downloading Surah {surah_num} (attempt {attempt + 1}/{retries}): {e}")
+        await asyncio.sleep(1)
+    print(f"Failed after {retries} attempts: Surah {surah_num}")
 
 
 async def main(args):
@@ -252,36 +261,53 @@ async def main(args):
     parser.add_argument("-o", "--output", default=".", help="Output directory")
     parser.add_argument("-f", "--file-name", default="number - name", help="Filename format (no .mp3)")
     parser.add_argument("-r", "--reciter", default="yasser_ad-dussary", help="Reciter name")
-    args = parser.parse_args(args)
+    parsed_args = parser.parse_args(args)
 
     try:
-        async with aiohttp.ClientSession() as session:
-            if args.surah.lower() == "all":
-                surah_items = list(SURAH_NAME_MAP.items())
-            elif "-" in args.surah:
-                start, end = map(int, args.surah.split("-"))
-                surah_items = [(name, num) for name, num in SURAH_NAME_MAP.items() if start <= num <= end]
-            elif args.surah.isdigit():
-                num = int(args.surah)
-                name = next((n for n, i in SURAH_NAME_MAP.items() if i == num), None)
-                if not name:
-                    print(f"Surah number '{num}' not found.")
-                    return
-                surah_items = [(name, num)]
-            else:
-                name = guess_name(args.surah.lower(), SURAH_NAME_MAP.keys())
-                if not name:
-                    print(f"Surah name '{args.surah}' not found.")
-                    return
-                surah_items = [(name, SURAH_NAME_MAP[name])]
+        if parsed_args.surah.lower() == "all":
+            surah_items = list(SURAH_NAME_MAP.items())
+        elif "-" in parsed_args.surah:
+            start, end = map(int, parsed_args.surah.split("-"))
+            surah_items = [(name, num) for name, num in SURAH_NAME_MAP.items() if start <= num <= end]
+        elif parsed_args.surah.isdigit():
+            num = int(parsed_args.surah)
+            name = next((n for n, i in SURAH_NAME_MAP.items() if i == num), None)
+            if not name:
+                print(f"Surah number '{num}' not found.")
+                return
+            surah_items = [(name, num)]
+        else:
+            name = guess_name(parsed_args.surah.lower(), SURAH_NAME_MAP.keys())
+            if not name:
+                print(f"Surah name '{parsed_args.surah}' not found.")
+                return
+            surah_items = [(name, SURAH_NAME_MAP[name])]
 
-            os.makedirs(args.output, exist_ok=True)
-            await asyncio.gather(*[download_surah(session, num, name, args.reciter, args.output, args.file_name) for name, num in surah_items])
+        surah_items.sort(key=lambda x: x[1])
+        os.makedirs(parsed_args.output, exist_ok=True)
+
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                asyncio.create_task(download_surah(session, num, name, parsed_args.reciter, parsed_args.output, parsed_args.file_name))
+                for name, num in surah_items
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     except KeyboardInterrupt:
-        print("\nDownload interrupted by the user. Exiting...")
-        return
+        print("\n\nDownload interrupted by the user. Exiting...")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main(sys.argv[1:]))
+    if sys.version_info >= (3, 11):
+        try:
+            asyncio.run(main(sys.argv[1:]))
+        except KeyboardInterrupt:
+            print("\n\nDownload interrupted by the user. Exiting...")
+    else:
+        loop = asyncio.get_event_loop()
+        try:
+            loop.run_until_complete(main(sys.argv[1:]))
+        except KeyboardInterrupt:
+            print("\n\nDownload interrupted by the user. Exiting...")
