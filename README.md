@@ -1,7 +1,5 @@
 # qurandl
-﷽
-
-Simple Python CLI script for mass downloading Qur'an from [QuranicAudio](https://www.quranicaudio.com).
+Simple Python CLI script for mass downloading Qur'an audio files from [QuranicAudio](https://www.quranicaudio.com).
 
 **Features**:
 - Download the entirety of the Qur'an in under two minutes.
@@ -9,7 +7,7 @@ Simple Python CLI script for mass downloading Qur'an from [QuranicAudio](https:/
 - Choose whichever reciter you prefer.
 
 ## Installation
-All that is necessary is the [`quran.py`](./quran.py) file; you additionally must download the two dependencies in [`requirements.txt`](./requirements.txt).
+All that is necessary is the [`quran.py`](./quran.py) file; you additionally must install the two dependencies in [`requirements.txt`](./requirements.txt). You can do this with `pip install -r requirements.txt`.
 
 Ensure that you have Python installed. Execute the program with `python /path/to/quran.py`.
 
